@@ -1,0 +1,67 @@
+
+services:
+  mongo:
+    image: mongo:7.0
+    container_name: mongo-airports
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+
+  redis-geo:
+    image: redis:7-alpine
+    container_name: redis-geo
+    restart: always
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --requirepass redisgeo123
+
+  redis-pop:
+    image: redis:7-alpine
+    container_name: redis-pop
+    restart: always
+    ports:
+      - "6380:6379"
+    command: redis-server --appendonly yes --requirepass redispop123
+
+  backend:
+    build: ./backend
+    container_name: fastapi-airports
+    restart: always
+    ports:
+      - "8000:8000"
+    command:
+      - /bin/sh
+      - -c
+      - |
+        echo "Backend corriendo en: http://localhost:8000"
+        echo "Documentacion API en: http://localhost:8000/docs"
+        exec uvicorn app.main:app --host 0.0.0.0 --port 8000
+    depends_on:
+      - mongo
+      - redis-geo
+      - redis-pop
+    environment:
+      MONGO_URI: mongodb://mongo:27017/airport_db
+      REDIS_GEO_URL: redis://:redisgeo123@redis-geo:6379/0
+      REDIS_POP_URL: redis://:redispop123@redis-pop:6379/0
+
+  frontend:
+    build: ./frontend
+    container_name: frontend-airports
+    restart: always
+    ports:
+      - "3000:80"
+    command:
+      - /bin/sh
+      - -c
+      - |
+        echo "Frontend corriendo en: http://localhost:3000"
+        echo "Backend corriendo en: http://localhost:8000"
+        exec nginx -g 'daemon off;'
+    depends_on:
+      - backend
+
+volumes:
+  mongo-data:
